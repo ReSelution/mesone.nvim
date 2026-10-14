@@ -11,6 +11,7 @@ local M = {
       cross = {},
       native = {},
       option = {},
+      buildtype = {},
       log = {},
       clean = {},
     },

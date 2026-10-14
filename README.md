@@ -120,6 +120,12 @@ configured, it takes them from that folder, so that a later setup keeps them.
 Switching the build folder in the project settings takes the machine files of
 the new folder, unless they were changed in the same edit.
 
+## Build type
+
+`Mesone buildtype` opens a picker with the build types. If the build folder is
+set up, the new one is set right away with `meson configure`; otherwise the
+next setup uses it.
+
 ## Build options
 
 `Mesone option` opens a picker with the build options of the current build
@@ -169,6 +175,7 @@ You can execute Mesone in `command-mode` writing `:Mesone <action>`
 |setting|Change project settings|
 |cross|Select the cross file from the project|
 |native|Select the native file from the project|
+|buildtype|Select the build type|
 |option|Change a build option of the build folder|
 
 The Mesone plugin will help you to compose the command via the auto-completion 😊

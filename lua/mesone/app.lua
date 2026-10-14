@@ -335,6 +335,8 @@ function M:parse_command(opts)
     self:_select_machine_file("cross_file")
   elseif action == "native" then
     self:_select_machine_file("native_file")
+  elseif action == "buildtype" then
+    self:_select_build_type()
   elseif action == "option" then
     self:_select_option()
   elseif action == "setting" then
@@ -489,6 +491,36 @@ function M:_change_option(option)
     end
     vim.ui.input({ prompt = prompt .. ": ", default = _option_value(option.value) }, apply)
   end
+end
+
+-- Picks the build type. A set up build folder gets it right away, otherwise
+-- the next setup uses it.
+function M:_select_build_type()
+  local build_types = { "plain", "debug", "debugoptimized", "release", "minsize", "custom" }
+  if self.project ~= nil and self.project.options ~= nil and self.project.options.build_types ~= nil then
+    build_types = self.project.options.build_types
+  end
+  local current = self.opts:get().build_type
+  local entries = {}
+  local by_entry = {}
+  for _, build_type in ipairs(build_types) do
+    local entry = build_type
+    if build_type == current then
+      entry = entry .. " (current)"
+    end
+    table.insert(entries, entry)
+    by_entry[entry] = build_type
+  end
+  utils.select_from_list("Select build type", entries, function(entry)
+    local build_type = by_entry[entry]
+    self.opts:update({ build_type = build_type })
+    storage.save(vim.uv.cwd(), self.opts:get())
+    if self.project ~= nil and self.project.build_options ~= nil then
+      self:_meson_configure("buildtype", build_type)
+    else
+      notification.notify("Mesone: build type " .. build_type .. ", used by the next setup", vim.log.levels.INFO)
+    end
+  end)
 end
 
 function M:_meson_configure(key, value)
