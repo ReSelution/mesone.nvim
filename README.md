@@ -106,6 +106,11 @@ and `--native-file`, e.g. `native_file = "cross/linux-clang.ini"`. Several
 files can be given as a list or comma-separated; in the project settings they
 are edited comma-separated.
 
+`Mesone cross` and `Mesone native` open a picker with the `.ini` files of the
+project (outside of build folders, subprojects and hidden folders) and the
+files in meson's user folders (`~/.local/share/meson/cross` and
+`~/.local/share/meson/native`). The selected file is used by the next setup.
+
 Meson keeps the machine files of a build folder across a reconfigure. If the
 configured ones differ from the ones the build folder was set up with,
 `Mesone setup` wipes the folder (`--wipe`) instead of reconfiguring it.
@@ -153,6 +158,8 @@ You can execute Mesone in `command-mode` writing `:Mesone <action>`
 |debug|Run target in debug (using DAP)|
 |clean|Clean meson project|
 |setting|Change project settings|
+|cross|Select the cross file from the project|
+|native|Select the native file from the project|
 
 The Mesone plugin will help you to compose the command via the auto-completion 😊
 

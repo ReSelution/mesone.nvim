@@ -44,4 +44,18 @@ describe("machine_files", function()
     assert.is_true(machine_files.differ({ cross_file = "", native_file = "cross/win.ini" }, "/p", folder))
     assert.is_false(machine_files.differ({ cross_file = "x.ini" }, "/p", folder .. "/missing"))
   end)
+
+  it("should find the .ini files of a project outside of build folders", function()
+    local root = vim.fs.normalize(vim.fn.tempname())
+    for _, folder in ipairs({ "cross", "build/meson-info", ".git", "subprojects/dep" }) do
+      vim.fn.mkdir(root .. "/" .. folder, "p")
+    end
+    for _, file in ipairs({ "cross/a.ini", "cross/b.ini", "build/c.ini", ".git/d.ini", "subprojects/dep/e.ini", "f.txt" }) do
+      vim.fn.writefile({}, root .. "/" .. file)
+    end
+    local got = vim.tbl_filter(function(path)
+      return not vim.startswith(path, "/")
+    end, machine_files.candidates(root, "cross_file", 3))
+    assert.are.same({ "cross/a.ini", "cross/b.ini" }, got)
+  end)
 end)

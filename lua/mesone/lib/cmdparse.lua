@@ -8,6 +8,8 @@ local M = {
       run = {},
       debug = {},
       setting = {},
+      cross = {},
+      native = {},
       log = {},
       clean = {},
     },

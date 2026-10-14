@@ -116,4 +116,48 @@ function M.settings_from_build_folder(root, build_folder)
   return result
 end
 
+-- Folders meson looks up machine files given by name in.
+local function _user_folders(kind)
+  local sub = kind == "cross_file" and "cross" or "native"
+  local folders = {}
+  local data_home = vim.env.XDG_DATA_HOME or (vim.env.HOME and vim.env.HOME .. "/.local/share")
+  if data_home ~= nil then
+    table.insert(folders, data_home .. "/meson/" .. sub)
+  end
+  for dir in (vim.env.XDG_DATA_DIRS or "/usr/local/share:/usr/share"):gmatch("[^:]+") do
+    table.insert(folders, dir .. "/meson/" .. sub)
+  end
+  return folders
+end
+
+-- Candidate machine files of a kind: the .ini files in the project, outside of
+-- build folders and subprojects, and the files in meson's user folders. Paths
+-- inside the project are relative to the root.
+function M.candidates(root, kind, depth)
+  local result = {}
+  root = vim.fs.normalize(root)
+  -- Gets the folder relative to the root, false skips it.
+  local skip = function(folder)
+    local name = vim.fs.basename(folder)
+    if vim.startswith(name, ".") or name == "subprojects" then
+      return false
+    end
+    return vim.uv.fs_stat(root .. "/" .. folder .. "/meson-info") == nil
+  end
+  for name, type in vim.fs.dir(root, { depth = depth, skip = skip }) do
+    if type == "file" and name:match("%.ini$") then
+      table.insert(result, name)
+    end
+  end
+  table.sort(result)
+  for _, folder in ipairs(_user_folders(kind)) do
+    for name, type in vim.fs.dir(folder) do
+      if type == "file" then
+        table.insert(result, vim.fs.normalize(folder .. "/" .. name))
+      end
+    end
+  end
+  return result
+end
+
 return M

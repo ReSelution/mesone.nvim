@@ -330,6 +330,10 @@ function M:parse_command(opts)
     self:_run_target()
   elseif action == "debug" then
     self:_debug_target()
+  elseif action == "cross" then
+    self:_select_machine_file("cross_file")
+  elseif action == "native" then
+    self:_select_machine_file("native_file")
   elseif action == "setting" then
     self:_show_settings()
   elseif action == "log" then
@@ -385,6 +389,35 @@ function M:on_buffer_focused(ev)
       self:check_focused_buffer(buffer_number, buffer_filename)
     end
   end
+end
+
+local no_machine_file = "(none)"
+
+-- Picks the machine file of a kind from the files found in the project. It is
+-- used by the next setup.
+function M:_select_machine_file(kind)
+  local current = machine_files.to_list(self.opts:get()[kind])
+  local entries = { no_machine_file }
+  local paths = { [no_machine_file] = "" }
+  for _, path in ipairs(machine_files.candidates(vim.uv.cwd(), kind, self.opts:get().info_depth)) do
+    local entry = path
+    if vim.list_contains(current, path) then
+      entry = path .. " (current)"
+    end
+    table.insert(entries, entry)
+    paths[entry] = path
+  end
+  if #current == 0 then
+    entries[1] = no_machine_file .. " (current)"
+    paths[entries[1]] = ""
+  end
+  local title = kind == "cross_file" and "Select cross file" or "Select native file"
+  utils.select_from_list(title, entries, function(entry)
+    self.opts:update({ [kind] = paths[entry] })
+    storage.save(vim.uv.cwd(), self.opts:get())
+    local name = paths[entry] ~= "" and paths[entry] or "none"
+    notification.notify("Mesone: " .. kind:gsub("_", " ") .. ": " .. name .. ", used by the next setup", vim.log.levels.INFO)
+  end)
 end
 
 function M:_show_settings()
