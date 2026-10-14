@@ -3,6 +3,8 @@ local form = require("mesone.ui.form")
 local default_settings = {
   build_folder = "build",
   build_type = "debug",
+  cross_file = "",
+  native_file = "",
   info_depth = 3,
   show_command_logs = false,
   auto_compile = true,
@@ -42,6 +44,8 @@ function M:ui(on_changed)
           "minsize",
           "custom",
         },
+        cross_file = {},
+        native_file = {},
         info_depth = {},
         show_command_logs = { true, false },
         auto_compile = { true, false },

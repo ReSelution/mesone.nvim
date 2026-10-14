@@ -78,6 +78,10 @@ You can use your preferred package manager, the following example is based on [`
     -- Default build type is 'debug', but can be: plain, debug,
     -- debugoptimized, release, minsize, custom
     build_type = "debug",
+    -- Cross and native files passed to 'meson setup', relative to the
+    -- project root. Several files as a list or comma-separated
+    cross_file = "",
+    native_file = "",
     -- The dap adapter used for debugging
     dap_adapter = "gdb",
     -- Show always meson log window
@@ -94,6 +98,22 @@ You can use your preferred package manager, the following example is based on [`
 ```
 
 You can overwrite using `setup` function or via `opts` if you are using [`lazy.nvim`](https://github.com/folke/lazy.nvim):
+
+## Cross and native files
+
+`cross_file` and `native_file` are passed to `meson setup` as `--cross-file`
+and `--native-file`, e.g. `native_file = "cross/linux-clang.ini"`. Several
+files can be given as a list or comma-separated; in the project settings they
+are edited comma-separated.
+
+Meson keeps the machine files of a build folder across a reconfigure. If the
+configured ones differ from the ones the build folder was set up with,
+`Mesone setup` wipes the folder (`--wipe`) instead of reconfiguring it.
+
+When Mesone finds an existing build folder and no machine files are
+configured, it takes them from that folder, so that a later setup keeps them.
+Switching the build folder in the project settings takes the machine files of
+the new folder, unless they were changed in the same edit.
 
 ## clangd and the build folder
 

@@ -6,6 +6,7 @@ local project = require("mesone.project")
 local tests = require("mesone.tests")
 local settings = require("mesone.settings")
 local clangd = require("mesone.lib.clangd")
+local machine_files = require("mesone.lib.machine_files")
 local command = require("mesone.lib.command")
 local notification = require("mesone.lib.notification")
 local storage = require("mesone.lib.storage")
@@ -73,7 +74,22 @@ function M:_update_project()
   end
 end
 
+-- Takes the machine files of the build folder into the settings, so that a
+-- later setup keeps them.
+function M:_adopt_machine_files()
+  local adopted = machine_files.settings_from_build_folder(vim.uv.cwd(), self.full_build_folder)
+  if adopted ~= nil then
+    self.opts:update(adopted)
+  end
+end
+
 function M:_on_init_completed()
+  self.full_build_folder = vim.fs.normalize(vim.uv.cwd() .. "/" .. self.opts:get().build_folder)
+  -- Only if none are configured, so that configured ones win.
+  local opts = self.opts:get()
+  if #machine_files.to_list(opts.cross_file) == 0 and #machine_files.to_list(opts.native_file) == 0 then
+    self:_adopt_machine_files()
+  end
   self:_update_project()
   self:_on_build_folder_changed()
   notification.notify("Mesone initialized", vim.log.levels.INFO)
@@ -131,13 +147,20 @@ function M:_meson_setup()
     log_filename = self.log_filename,
     show_command_logs = self.opts:get().show_command_logs,
   })
+  -- Meson keeps the machine files across a reconfigure, so other ones need
+  -- a wipe of the build folder.
+  local reconfigure = "--reconfigure"
+  if machine_files.differ(self.opts:get(), vim.uv.cwd(), self.full_build_folder) then
+    reconfigure = "--wipe"
+  end
   local args = {
     "setup",
-    "--reconfigure",
+    reconfigure,
     "--buildtype",
     self.opts:get().build_type,
-    self.opts:get().build_folder,
   }
+  vim.list_extend(args, machine_files.setup_args(self.opts:get()))
+  table.insert(args, self.opts:get().build_folder)
   self.running = true
   cmd:execute(args, "Setup", function(status)
     self:_on_command_exit(status)
@@ -167,6 +190,10 @@ end
 function M:setup(opts)
   local saved_opts = storage.load(vim.uv.cwd(), {})
   self.opts:update(vim.tbl_extend("force", opts, saved_opts))
+  -- Lists become the comma-separated form the settings form can edit.
+  for _, kind in ipairs(machine_files.kinds) do
+    self.opts:update({ [kind] = machine_files.to_setting(self.opts:get()[kind]) })
+  end
   self.full_build_folder = vim.fs.normalize(vim.uv.cwd() .. "/" .. self.opts:get().build_folder)
   -- Before any clangd has started, so that the first one already gets the
   -- right compile commands.
@@ -361,7 +388,23 @@ function M:on_buffer_focused(ev)
 end
 
 function M:_show_settings()
+  local before = vim.deepcopy(self.opts:get())
   self.opts:ui(function(opts)
+    -- Switching to another build folder brings its machine files along,
+    -- unless they were changed in the form as well.
+    if opts.build_folder ~= before.build_folder then
+      local unchanged = true
+      for _, kind in ipairs(machine_files.kinds) do
+        if machine_files.to_setting(opts[kind]) ~= machine_files.to_setting(before[kind]) then
+          unchanged = false
+        end
+      end
+      if unchanged then
+        self.full_build_folder = vim.fs.normalize(vim.uv.cwd() .. "/" .. opts.build_folder)
+        self:_adopt_machine_files()
+        opts = self.opts:get()
+      end
+    end
     storage.save(vim.uv.cwd(), opts)
     notification.notify("Project setting saved", vim.log.levels.INFO)
     self:_update_project()
