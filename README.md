@@ -87,11 +87,36 @@ You can use your preferred package manager, the following example is based on [`
     -- Automatically close terminal window on process exit (only on success)
     auto_close_terminal = false,
     -- Automatically compile project before running
-    compile_before_run = false
+    compile_before_run = false,
+    -- Point clangd at the compile_commands.json of the current build folder
+    lsp_compile_commands = false
 }
 ```
 
 You can overwrite using `setup` function or via `opts` if you are using [`lazy.nvim`](https://github.com/folke/lazy.nvim):
+
+## clangd and the build folder
+
+With `lsp_compile_commands = true`, Mesone tells clangd to use the
+`compile_commands.json` of the current build folder (through the init option
+`compilationDatabasePath`). When the build folder changes, in the project
+settings or by a setup in a new folder, a running clangd is restarted with the
+new one. This needs Neovim 0.11+ with clangd set up through `vim.lsp.enable`,
+as nvim-lspconfig and LazyVim do.
+
+A configured or saved build folder that is set up already is kept on startup
+instead of the first one found in the project, so the choice sticks.
+
+Other plugins can follow the build folder as well:
+
+```lua
+vim.api.nvim_create_autocmd("User", {
+  pattern = "MesoneBuildFolderChanged",
+  callback = function(ev)
+    print("build folder: " .. ev.data.build_folder)
+  end,
+})
+```
 
 ## Available Commands
 

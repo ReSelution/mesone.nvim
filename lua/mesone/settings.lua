@@ -9,6 +9,7 @@ local default_settings = {
   dap_adapter = "gdb",
   auto_close_terminal = false,
   compile_before_run = false,
+  lsp_compile_commands = false,
 }
 
 local M = {}
@@ -47,6 +48,7 @@ function M:ui(on_changed)
         dap_adapter = {},
         auto_close_terminal = { true, false },
         compile_before_run = { true, false },
+        lsp_compile_commands = { true, false },
       },
     })
   end

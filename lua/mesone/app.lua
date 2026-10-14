@@ -5,6 +5,7 @@ local window = require("mesone.ui.window")
 local project = require("mesone.project")
 local tests = require("mesone.tests")
 local settings = require("mesone.settings")
+local clangd = require("mesone.lib.clangd")
 local command = require("mesone.lib.command")
 local notification = require("mesone.lib.notification")
 local storage = require("mesone.lib.storage")
@@ -36,10 +37,28 @@ function M:new(opts)
   return o
 end
 
+-- Called whenever the build folder may have changed or got new compile
+-- commands: tells listeners and, if enabled, clangd.
+function M:_on_build_folder_changed()
+  self.full_build_folder = vim.fs.normalize(vim.uv.cwd() .. "/" .. self.opts:get().build_folder)
+  if self.opts:get().lsp_compile_commands then
+    clangd.use_build_folder(self.full_build_folder)
+  end
+  if self.announced_build_folder ~= self.full_build_folder then
+    self.announced_build_folder = self.full_build_folder
+    vim.api.nvim_exec_autocmds("User", {
+      pattern = "MesoneBuildFolderChanged",
+      data = { build_folder = self.full_build_folder },
+    })
+  end
+end
+
 function M:_on_command_exit(status)
   self.running = false
   if status == 0 then
     self:_update_project()
+    -- A setup may have created the build folder or its compile commands.
+    self:_on_build_folder_changed()
   elseif status ~= 0 and not self.opts:get().show_command_logs then
     self:_show_log()
   end
@@ -56,6 +75,7 @@ end
 
 function M:_on_init_completed()
   self:_update_project()
+  self:_on_build_folder_changed()
   notification.notify("Mesone initialized", vim.log.levels.INFO)
 end
 
@@ -63,6 +83,15 @@ function M:init()
   self.project = nil
   local pwd = vim.uv.cwd() .. "/"
   if utils.file_exists(pwd .. "meson.build") then
+    -- The configured (or saved) folder wins if it is set up already, so that
+    -- choosing one of several build folders sticks across restarts.
+    if vim.uv.fs_stat(pwd .. self.opts:get().build_folder .. "/meson-info") ~= nil then
+      vim.schedule(function()
+        self:_on_init_completed()
+      end)
+      return
+    end
+
     local metainfo_dir = nil
     scandir.scan_dir_async(pwd, {
       hidden = true,
@@ -139,6 +168,11 @@ function M:setup(opts)
   local saved_opts = storage.load(vim.uv.cwd(), {})
   self.opts:update(vim.tbl_extend("force", opts, saved_opts))
   self.full_build_folder = vim.fs.normalize(vim.uv.cwd() .. "/" .. self.opts:get().build_folder)
+  -- Before any clangd has started, so that the first one already gets the
+  -- right compile commands.
+  if self.opts:get().lsp_compile_commands then
+    clangd.use_build_folder(self.full_build_folder)
+  end
 end
 
 function M:_clean()
@@ -330,6 +364,8 @@ function M:_show_settings()
   self.opts:ui(function(opts)
     storage.save(vim.uv.cwd(), opts)
     notification.notify("Project setting saved", vim.log.levels.INFO)
+    self:_update_project()
+    self:_on_build_folder_changed()
   end)
 end
 
