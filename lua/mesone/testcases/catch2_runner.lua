@@ -15,17 +15,21 @@ function catch2_runner:get_testcases(path, cmd, _)
   end
   local success, tests = pcall(vim.json.decode, result.stdout, { luanil = { object = true, array = true } })
 
-  if not success then
+  if not success or not tests or not tests.listings or not tests.listings.tests then
     return nil
   end
 
   local test_list = {}
   for _, testcase in ipairs(tests.listings.tests) do
-    local filename = vim.fs.normalize(path .. "/" .. testcase["source-location"].filename)
+    -- Catch2 v2 uses "source-location", Catch2 v3 uses "sourceLocation"
+    local loc = testcase["source-location"] or testcase["sourceLocation"] or {}
+    local filename_rel = loc.filename or ""
+    local filename = vim.fs.normalize(path .. "/" .. filename_rel)
+
     table.insert(test_list, {
       name = testcase.name,
       filename = filename,
-      line = testcase["source-location"].line,
+      line = loc.line or 0,
       status = "unk",
       type = runner_name,
     })
@@ -57,7 +61,11 @@ function catch2_runner:run(testsuite, callback, run_sync)
         args = { "--reporter=json", testcase.name },
         on_exit = function(j, _)
           local stdout = table.concat(j:result(), "\n")
-          local test_result = vim.json.decode(stdout, { luanil = { object = true, array = true } })
+          local ok, test_result = pcall(vim.json.decode, stdout, { luanil = { object = true, array = true } })
+          if not ok or not test_result then
+            return
+          end
+
           local totals = test_result["test-run"].totals["test-cases"]
           local status = _catch2_status(totals)
 
@@ -66,13 +74,11 @@ function catch2_runner:run(testsuite, callback, run_sync)
 
           local assertions_failed = ""
           if status == "fail" then
-            for _, run_path in ipairs(test_result["test-run"]["test-cases"][1].runs[1].path) do
-              for _, path in ipairs(run_path.path) do
+            for _, run_path in ipairs(test_result["test-run"]["test-cases"][1].runs[1].path or {}) do
+              for _, path in ipairs(run_path.path or {}) do
                 if not path.status and path.kind == "assertion" then
-                  assertions_failed = assertions_failed
-                    .. "assertion failed at line "
-                    .. path["source-location"].line
-                    .. "\n"
+                  local loc = path["source-location"] or path["sourceLocation"] or {}
+                  assertions_failed = assertions_failed .. "assertion failed at line " .. (loc.line or 0) .. "\n"
                 end
               end
             end
