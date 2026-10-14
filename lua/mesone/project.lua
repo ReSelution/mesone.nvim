@@ -41,6 +41,7 @@ function M:load()
 end
 
 function M:_parse_build_options(options)
+  self.build_options = options
   for _, option in ipairs(options) do
     if option.name == "backend" then
       self.options.backend = option.value

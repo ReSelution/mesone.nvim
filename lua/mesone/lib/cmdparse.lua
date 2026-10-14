@@ -10,6 +10,7 @@ local M = {
       setting = {},
       cross = {},
       native = {},
+      option = {},
       log = {},
       clean = {},
     },

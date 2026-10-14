@@ -335,6 +335,8 @@ function M:parse_command(opts)
     self:_select_machine_file("cross_file")
   elseif action == "native" then
     self:_select_machine_file("native_file")
+  elseif action == "option" then
+    self:_select_option()
   elseif action == "setting" then
     self:_show_settings()
   elseif action == "log" then
@@ -390,6 +392,120 @@ function M:on_buffer_focused(ev)
       self:check_focused_buffer(buffer_number, buffer_filename)
     end
   end
+end
+
+-- Order of the option sections in the picker, the project's own options first.
+local section_order = { user = 1, base = 2, compiler = 3, core = 4, backend = 5, test = 6, directory = 7 }
+
+-- The name to set an option with; options of the build machine in a cross
+-- build carry a prefix.
+local function _option_key(option)
+  if option.machine == "build" then
+    return "build." .. option.name
+  end
+  return option.name
+end
+
+local function _option_value(value)
+  if type(value) == "table" then
+    return table.concat(vim.tbl_map(tostring, value), ",")
+  end
+  return tostring(value)
+end
+
+local function _option_rank(option)
+  -- Options of subprojects after the ones of the project.
+  local subproject = option.name:find(":", 1, true) ~= nil and 1 or 0
+  return subproject, section_order[option.section] or #vim.tbl_keys(section_order) + 1
+end
+
+-- Picks a build option of the build folder and a new value for it, and sets
+-- it with meson configure.
+function M:_select_option()
+  if self.project == nil or self.project.build_options == nil then
+    notification.notify("Mesone: no build folder set up, run setup first", vim.log.levels.WARN)
+    return
+  end
+  local options = vim.deepcopy(self.project.build_options)
+  table.sort(options, function(a, b)
+    local a_sub, a_section = _option_rank(a)
+    local b_sub, b_section = _option_rank(b)
+    if a_sub ~= b_sub then
+      return a_sub < b_sub
+    end
+    if a_section ~= b_section then
+      return a_section < b_section
+    end
+    return _option_key(a) < _option_key(b)
+  end)
+  local entries = {}
+  local by_entry = {}
+  for _, option in ipairs(options) do
+    local entry = _option_key(option) .. " = " .. _option_value(option.value)
+    if option.description ~= nil and option.description ~= "" then
+      entry = entry .. "  (" .. option.description .. ")"
+    end
+    table.insert(entries, entry)
+    by_entry[entry] = option
+  end
+  utils.select_from_list("Select option", entries, function(entry)
+    self:_change_option(by_entry[entry])
+  end, { layout_config = { width = 0.8, height = 0.6 } })
+end
+
+function M:_change_option(option)
+  local key = _option_key(option)
+  local apply = function(value)
+    if value ~= nil then
+      self:_meson_configure(key, value)
+    end
+  end
+  local choices = option.choices
+  if option.type == "boolean" then
+    choices = { "true", "false" }
+  end
+  if choices ~= nil and option.type ~= "array" then
+    local entries = {}
+    local by_entry = {}
+    for _, choice in ipairs(choices) do
+      local entry = tostring(choice)
+      if entry == _option_value(option.value) then
+        entry = entry .. " (current)"
+      end
+      table.insert(entries, entry)
+      by_entry[entry] = tostring(choice)
+    end
+    utils.select_from_list(key, entries, function(entry)
+      apply(by_entry[entry])
+    end)
+  else
+    -- Free values can only be typed, but start from the current one.
+    local prompt = key
+    if option.type == "array" then
+      prompt = prompt .. " (comma-separated)"
+      if choices ~= nil then
+        prompt = prompt .. " [" .. table.concat(choices, ",") .. "]"
+      end
+    end
+    vim.ui.input({ prompt = prompt .. ": ", default = _option_value(option.value) }, apply)
+  end
+end
+
+function M:_meson_configure(key, value)
+  if self.running then
+    notification.notify("Meson already running", "warn")
+    return
+  end
+  local cmd = command:new({
+    build_folder = self.full_build_folder,
+    log_filename = self.log_filename,
+    show_command_logs = self.opts:get().show_command_logs,
+  })
+  local args = { "configure", "-D" .. key .. "=" .. value, self.opts:get().build_folder }
+  self.running = true
+  cmd:execute(args, "Configure", function(status)
+    self:_on_command_exit(status)
+  end)
 end
 
 local no_machine_file = "(none)"

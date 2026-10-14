@@ -120,6 +120,15 @@ configured, it takes them from that folder, so that a later setup keeps them.
 Switching the build folder in the project settings takes the machine files of
 the new folder, unless they were changed in the same edit.
 
+## Build options
+
+`Mesone option` opens a picker with the build options of the current build
+folder, the project's own options first, then the ones of meson and of the
+subprojects. Booleans, combos and features get a second picker with their
+choices; strings, numbers and arrays an input that starts from the current
+value. The new value is set with `meson configure -D<name>=<value>`, so it
+is stored in the build folder and kept by later setups.
+
 ## clangd and the build folder
 
 With `lsp_compile_commands = true`, Mesone tells clangd to use the
@@ -160,6 +169,7 @@ You can execute Mesone in `command-mode` writing `:Mesone <action>`
 |setting|Change project settings|
 |cross|Select the cross file from the project|
 |native|Select the native file from the project|
+|option|Change a build option of the build folder|
 
 The Mesone plugin will help you to compose the command via the auto-completion 😊
 
