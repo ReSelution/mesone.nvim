@@ -152,6 +152,7 @@ function M:_meson_setup()
   local reconfigure = "--reconfigure"
   if machine_files.differ(self.opts:get(), vim.uv.cwd(), self.full_build_folder) then
     reconfigure = "--wipe"
+    machine_files.forget_in_build_folder(self.full_build_folder)
   end
   local args = {
     "setup",

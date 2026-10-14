@@ -45,6 +45,16 @@ describe("machine_files", function()
     assert.is_false(machine_files.differ({ cross_file = "x.ini" }, "/p", folder .. "/missing"))
   end)
 
+  it("should forget the machine files of a build folder but keep its options", function()
+    local folder = make_build_folder(
+      "[options]\nbuildtype = release\n\n[properties]\nnative_file = ['/p/a.ini']\ncross_file = ['/p/b.ini']\n"
+    )
+    machine_files.forget_in_build_folder(folder)
+    assert.are.same({ cross_file = {}, native_file = {} }, machine_files.read_build_folder(folder))
+    local content = table.concat(vim.fn.readfile(folder .. "/meson-private/cmd_line.txt"), "\n")
+    assert.is_truthy(content:find("buildtype = release", 1, true))
+  end)
+
   it("should find the .ini files of a project outside of build folders", function()
     local root = vim.fs.normalize(vim.fn.tempname())
     for _, folder in ipairs({ "cross", "build/meson-info", ".git", "subprojects/dep" }) do

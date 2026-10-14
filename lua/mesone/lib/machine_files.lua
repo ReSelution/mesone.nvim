@@ -98,6 +98,30 @@ function M.differ(opts, root, build_folder)
   return false
 end
 
+-- Removes the machine files from meson-private/cmd_line.txt of a build
+-- folder. A wipe takes every kind not given on the command line from there,
+-- so without this a file could not be dropped or swapped for another kind.
+-- The options in the file stay.
+function M.forget_in_build_folder(build_folder)
+  local filename = build_folder .. "/meson-private/cmd_line.txt"
+  if not utils.file_exists(filename) then
+    return
+  end
+  local lines = {}
+  local in_properties = false
+  for _, line in ipairs(vim.fn.readfile(filename)) do
+    local section = line:match("^%s*%[(.+)%]%s*$")
+    if section ~= nil then
+      in_properties = section == "properties"
+    end
+    local key = in_properties and line:match("^%s*([%w_]+)%s*=") or nil
+    if not vim.list_contains(M.kinds, key) then
+      table.insert(lines, line)
+    end
+  end
+  vim.fn.writefile(lines, filename)
+end
+
 -- The settings for the machine files of a build folder, with paths inside
 -- the project root made relative to it. Nil if the folder is not set up.
 function M.settings_from_build_folder(root, build_folder)
