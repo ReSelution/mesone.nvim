@@ -17,7 +17,10 @@ function gtest_runner:get_testcases(path, cmd, _)
     "--gtest_list_tests",
     "--gtest_output=json:" .. testlist_filename,
   }
-  local result = vim.system(command, { text = true }):wait()
+  -- stderr stays closed: helpers of the program (e.g. the wineserver of a
+  -- cross build run through wine) inherit it and keep it open for seconds
+  -- after the program exits, and wait() waits for every pipe to close.
+  local result = vim.system(command, { text = true, stderr = false }):wait()
 
   if result.code ~= 0 then
     -- If there is an error is not gtest
