@@ -6,13 +6,13 @@ local generic_testcase_name = "<Unknown>"
 
 local generic_runner = runner:new()
 
-function generic_runner:get_testcases(_, command, target_provider)
+function generic_runner:get_testcases(_, command, target_provider, callback)
   local filename = nil
   local target = target_provider(command)
   if target ~= nil then
     filename = target.sources[1]
   end
-  return {
+  callback({
     {
       name = generic_testcase_name,
       filename = filename,
@@ -20,7 +20,7 @@ function generic_runner:get_testcases(_, command, target_provider)
       status = "unk",
       type = runner_name,
     },
-  }
+  })
 end
 
 function generic_runner:run(testsuite, callback, run_sync)

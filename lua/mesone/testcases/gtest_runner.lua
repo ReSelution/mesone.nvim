@@ -9,19 +9,7 @@ function gtest_runner:debug_arguments(testcase)
   return { "--gtest_filter=" .. testcase.test_list[1].name }
 end
 
-function gtest_runner:get_testcases(path, cmd, _)
-  local testlist_filename = os.tmpname()
-
-  local command = {
-    cmd,
-    "--gtest_list_tests",
-    "--gtest_output=json:" .. testlist_filename,
-  }
-  -- stderr stays closed: helpers of the program (e.g. the wineserver of a
-  -- cross build run through wine) inherit it and keep it open for seconds
-  -- after the program exits, and wait() waits for every pipe to close.
-  local result = vim.system(command, { text = true, stderr = false }):wait()
-
+local function _parse_testcases(path, result, testlist_filename)
   if result.code ~= 0 then
     -- If there is an error is not gtest
     os.remove(testlist_filename)
@@ -51,6 +39,26 @@ function gtest_runner:get_testcases(path, cmd, _)
   os.remove(testlist_filename)
 
   return test_list
+end
+
+function gtest_runner:get_testcases(path, cmd, _, callback)
+  local testlist_filename = os.tmpname()
+
+  local command = {
+    cmd,
+    "--gtest_list_tests",
+    "--gtest_output=json:" .. testlist_filename,
+  }
+  -- stderr stays closed: helpers of the program (e.g. the wineserver of a
+  -- cross build run through wine) inherit it and keep it open for seconds
+  -- after the program exits, and on_exit only fires once every pipe is closed.
+  vim.system(
+    command,
+    { text = true, stderr = false },
+    vim.schedule_wrap(function(result)
+      callback(_parse_testcases(path, result, testlist_filename))
+    end)
+  )
 end
 
 local function _gtest_status(result, failures)

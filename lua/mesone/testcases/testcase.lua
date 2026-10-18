@@ -10,19 +10,30 @@ local function _build_runners(...)
   return map
 end
 
+local runner_order = { "gtest", "catch2" }
+
 local M = {
   runners = _build_runners("mesone.testcases.gtest_runner", "mesone.testcases.catch2_runner"),
   default_runner = default_runner:new(),
 }
 
-function M.get_testcases(path, cmd, target_provider)
-  for _, runner in pairs(M.runners) do
-    local testcases = runner:get_testcases(path, cmd, target_provider)
-    if testcases ~= nil then
-      return testcases
+-- Asks the runners one after another, the first that knows the program wins.
+function M.get_testcases(path, cmd, target_provider, callback)
+  local function try(index)
+    local name = runner_order[index]
+    if name == nil then
+      M.default_runner:get_testcases(path, cmd, target_provider, callback)
+      return
     end
+    M.runners[name]:get_testcases(path, cmd, target_provider, function(testcases)
+      if testcases ~= nil then
+        callback(testcases)
+      else
+        try(index + 1)
+      end
+    end)
   end
-  return M.default_runner:get_testcases(path, cmd, target_provider)
+  try(1)
 end
 
 function M.run(test, callback)

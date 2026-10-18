@@ -5,13 +5,7 @@ local runner_name = "catch2"
 
 local catch2_runner = runner:new()
 
-function catch2_runner:get_testcases(path, cmd, _)
-  local command = { cmd, "--list-tests", "--reporter", "json" }
-  -- stderr stays closed: helpers of the program (e.g. the wineserver of a
-  -- cross build run through wine) inherit it and keep it open for seconds
-  -- after the program exits, and wait() waits for every pipe to close.
-  local result = vim.system(command, { text = true, stderr = false }):wait()
-
+local function _parse_testcases(path, result)
   if result.code ~= 0 then
     -- If there is an error is not catch2
     return nil
@@ -39,6 +33,20 @@ function catch2_runner:get_testcases(path, cmd, _)
   end
 
   return test_list
+end
+
+function catch2_runner:get_testcases(path, cmd, _, callback)
+  local command = { cmd, "--list-tests", "--reporter", "json" }
+  -- stderr stays closed: helpers of the program (e.g. the wineserver of a
+  -- cross build run through wine) inherit it and keep it open for seconds
+  -- after the program exits, and on_exit only fires once every pipe is closed.
+  vim.system(
+    command,
+    { text = true, stderr = false },
+    vim.schedule_wrap(function(result)
+      callback(_parse_testcases(path, result))
+    end)
+  )
 end
 
 local function _catch2_status(totals)

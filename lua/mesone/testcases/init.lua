@@ -9,7 +9,9 @@ end
 
 function runner:name() end
 
-function runner:get_testcases(path, command) end
+-- Calls callback with the list of testcases, or with nil if the runner does
+-- not know the program.
+function runner:get_testcases(path, command, target_provider, callback) end
 
 function runner:run(testsuite, callback) end
 

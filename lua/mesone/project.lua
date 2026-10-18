@@ -12,7 +12,9 @@ function M:new(opts)
   return o
 end
 
-function M:load()
+-- Options and targets are read at once. The testcases come later, since
+-- listing them runs every test program; on_tests_loaded is called then.
+function M:load(on_tests_loaded)
   -- meson-info
   local meson_info = utils.read_json_file(self.folder .. "meson-info.json")
   if meson_info == nil then
@@ -36,7 +38,8 @@ function M:load()
   -- tests
   self:_parse_tests(
     meson_info.directories.build,
-    utils.read_json_file(self.folder .. meson_info.introspection.information.tests.file)
+    utils.read_json_file(self.folder .. meson_info.introspection.information.tests.file),
+    on_tests_loaded or function() end
   )
 end
 
@@ -52,41 +55,66 @@ function M:_parse_build_options(options)
   end
 end
 
-function M:_parse_tests(path, tests)
+-- Lists the testcases of all test programs at once and fills self.tests in
+-- the order of the tests once every program has answered.
+function M:_parse_tests(path, tests, on_done)
   self.max_testcase_len = 0
-  for _, test in ipairs(tests) do
-    local test_list = {}
-    if utils.file_exists(test.cmd[1]) then
-      ---@diagnostic disable-next-line: cast-local-type
-      test_list = testcases.get_testcases(path, test.cmd[1], function(name)
-        return self:get_target(name)
-      end)
+  local test_lists = {}
+  local pending = #tests + 1
+
+  local function finish_one()
+    pending = pending - 1
+    if pending > 0 then
+      return
     end
-    local test_runner = test.protocol
-    for _, testcase in ipairs(test_list) do
-      if string.len(testcase.name) > self.max_testcase_len then
-        self.max_testcase_len = string.len(testcase.name)
-      end
-      test_runner = testcase.type
-      if testcase.filename ~= nil then
-        if self.tests_status[testcase.filename] == nil then
-          self.tests_status[testcase.filename] =
-            { { name = testcase.name, line = testcase.line, status = testcase.status } }
-        else
-          table.insert(
-            self.tests_status[testcase.filename],
-            { name = testcase.name, line = testcase.line, status = testcase.status }
-          )
-        end
-      end
+    for index, test in ipairs(tests) do
+      self:_add_test(test, test_lists[index])
     end
-    table.insert(self.tests, {
-      name = test.name,
-      type = test_runner,
-      cmd = test.cmd,
-      test_list = test_list,
-    })
+    on_done()
   end
+
+  for index, test in ipairs(tests) do
+    if utils.file_exists(test.cmd[1]) then
+      testcases.get_testcases(path, test.cmd[1], function(name)
+        return self:get_target(name)
+      end, function(test_list)
+        test_lists[index] = test_list
+        finish_one()
+      end)
+    else
+      test_lists[index] = {}
+      finish_one()
+    end
+  end
+  -- Also covers a project without tests.
+  finish_one()
+end
+
+function M:_add_test(test, test_list)
+  local test_runner = test.protocol
+  for _, testcase in ipairs(test_list) do
+    if string.len(testcase.name) > self.max_testcase_len then
+      self.max_testcase_len = string.len(testcase.name)
+    end
+    test_runner = testcase.type
+    if testcase.filename ~= nil then
+      if self.tests_status[testcase.filename] == nil then
+        self.tests_status[testcase.filename] =
+          { { name = testcase.name, line = testcase.line, status = testcase.status } }
+      else
+        table.insert(
+          self.tests_status[testcase.filename],
+          { name = testcase.name, line = testcase.line, status = testcase.status }
+        )
+      end
+    end
+  end
+  table.insert(self.tests, {
+    name = test.name,
+    type = test_runner,
+    cmd = test.cmd,
+    test_list = test_list,
+  })
 end
 
 function M:_parse_targets(targets)

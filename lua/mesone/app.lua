@@ -66,8 +66,17 @@ function M:_on_command_exit(status)
 end
 
 function M:_update_project()
-  self.project = project:new({ folder = self.opts:get().build_folder })
-  self.project:load()
+  local loading = project:new({ folder = self.opts:get().build_folder })
+  self.project = loading
+  loading:load(function()
+    -- A later update replaced this project while its tests were listed.
+    if self.project ~= loading then
+      return
+    end
+    if self.tests ~= nil then
+      self.tests:update_project(loading)
+    end
+  end)
   self.opts:update({ build_type = self.project.options.build_type })
   if self.tests ~= nil then
     self.tests:update_project(self.project)
